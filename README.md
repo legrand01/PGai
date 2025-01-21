@@ -94,12 +94,24 @@ PGai is a real-time PostgreSQL monitoring and performance tuning tool that combi
 
 ### Configuration
 
+#### Database Connection
 Environment variables for database connection:
 - `PGHOST`: PostgreSQL host (default: localhost)
 - `PGPORT`: PostgreSQL port (default: 5432)
 - `PGDATABASE`: Database name (default: pgai)
 - `PGUSER`: Database user (default: pgai_user)
 - `PGPASSWORD`: Database password
+
+#### PostgreSQL Configuration
+For detailed information about PostgreSQL configuration, including:
+- Configuration file locations
+- Important parameters
+- Modification methods
+- Backup procedures
+- Best practices
+- Troubleshooting
+
+See [PostgreSQL Configuration Guide](docs/postgres_config.md)
 
 ## Database Schema
 
