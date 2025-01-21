@@ -29,10 +29,82 @@
             font-size: 14px;
         }
         .recommendation {
-            padding: 10px;
-            margin: 5px 0;
-            border-left: 4px solid #1a73e8;
+            padding: 20px;
+            margin: 15px 0;
+            border-radius: 8px;
+            background-color: #fff;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border: 1px solid #e8eaed;
+        }
+        .recommendation strong {
+            color: #1a73e8;
+            font-size: 16px;
+            font-weight: 600;
+        }
+        .recommendation .text-muted {
+            color: #5f6368;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+        .recommendation .parameter-name {
+            margin-right: 12px;
+        }
+        .recommendation .parameter-name strong {
+            font-size: 18px;
+            color: #202124;
+            font-weight: 600;
+        }
+        .recommendation .value-pair {
             background-color: #f8f9fa;
+            padding: 16px;
+            border-radius: 8px;
+            margin: 12px 0;
+            border: 1px solid #e8eaed;
+        }
+        .recommendation .current-value {
+            color: #202124;
+            font-weight: 500;
+            font-size: 16px;
+            margin-top: 4px;
+        }
+        .recommendation .recommended-value {
+            color: #34a853;
+            font-weight: 600;
+            font-size: 16px;
+            margin-top: 4px;
+        }
+        .recommendation .value-arrow {
+            color: #5f6368;
+            font-size: 20px;
+            margin: 0 16px;
+            opacity: 0.5;
+        }
+        .impact-high, .impact-medium, .impact-low, .restart-required {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            color: white;
+            font-size: 12px;
+            font-weight: 500;
+            margin: 8px 8px 8px 0;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .impact-high {
+            background-color: #ea4335;
+            box-shadow: 0 2px 4px rgba(234, 67, 53, 0.2);
+        }
+        .impact-medium {
+            background-color: #fbbc05;
+            box-shadow: 0 2px 4px rgba(251, 188, 5, 0.2);
+        }
+        .impact-low {
+            background-color: #34a853;
+            box-shadow: 0 2px 4px rgba(52, 168, 83, 0.2);
+        }
+        .restart-required {
+            background-color: #5f6368;
+            box-shadow: 0 2px 4px rgba(95, 99, 104, 0.2);
         }
         .chart-container {
             position: relative;

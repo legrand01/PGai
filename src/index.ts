@@ -11,7 +11,7 @@ import {
 import pkg from 'pg';
 const { Client } = pkg;
 import * as si from 'systeminformation';
-import axios from 'axios';
+import { ConfigAnalyzer } from './config_analyzer.js';
 
 interface PostgresSettings {
   name: string;
@@ -51,7 +51,7 @@ interface ConfigHistoryEntry {
 class PGaiServer {
   private server: Server;
   private pgClient: InstanceType<typeof Client> | null = null;
-  private monitoringHistory: MonitoringData[] = [];
+  private configAnalyzer: ConfigAnalyzer | null = null;
   private configHistory: ConfigHistoryEntry[] = [];
 
   constructor() {
@@ -85,9 +85,14 @@ class PGaiServer {
     };
 
     this.pgClient = new Client(config);
-    this.pgClient.connect().catch((error: any) => {
+    this.pgClient.connect().then(async () => {
+      // Get total system memory for the config analyzer
+      const memInfo = await si.mem();
+      const totalMemoryMB = Math.floor(memInfo.total / (1024 * 1024));
+      this.configAnalyzer = new ConfigAnalyzer(this.pgClient!, totalMemoryMB);
+    }).catch((error: any) => {
       console.error('Failed to auto-connect:', error);
-      process.exit(1); // Exit if we can't connect to the database
+      process.exit(1);
     });
   }
 
@@ -127,7 +132,7 @@ class PGaiServer {
             properties: {
               timeRange: { 
                 type: 'string', 
-                description: 'Time range for analysis (e.g. "1h", "24h", "7d")'
+                description: 'Time range in minutes for analysis (e.g. "30" or "60")'
               }
             },
             required: ['timeRange']
@@ -198,6 +203,11 @@ class PGaiServer {
 
       this.pgClient = new Client(config);
       await this.pgClient.connect();
+
+      // Initialize config analyzer with new connection
+      const memInfo = await si.mem();
+      const totalMemoryMB = Math.floor(memInfo.total / (1024 * 1024));
+      this.configAnalyzer = new ConfigAnalyzer(this.pgClient, totalMemoryMB);
 
       return {
         content: [
@@ -295,7 +305,7 @@ class PGaiServer {
   }
 
   private async handleAnalyzePerformance(args: Record<string, unknown>) {
-    if (!this.pgClient) {
+    if (!this.pgClient || !this.configAnalyzer) {
       throw new McpError(
         ErrorCode.InvalidRequest,
         'Not connected to database. Call connect_database first.'
@@ -303,53 +313,30 @@ class PGaiServer {
     }
 
     try {
-      const timeRange = String(args.timeRange);
-      const interval = this.parseTimeRange(timeRange);
-      const timestamp = new Date(Date.now() - interval);
-
-      // Get aggregated metrics from the database
-      const result = await this.pgClient.query(`
-        SELECT
-          round(avg(connections)::numeric, 2) as avg_connections,
-          round(avg(transactions_per_sec)::numeric, 2) as avg_tps,
-          round(avg(cache_hit_ratio)::numeric, 4) as avg_cache_hit_ratio,
-          round(avg(cpu_usage)::numeric, 2) as avg_cpu_usage,
-          round(avg(memory_usage)::numeric, 2) as avg_memory_usage,
-          round(avg(iops)::numeric, 2) as avg_iops
-        FROM metrics_history.metrics
-        WHERE timestamp > $1
-      `, [timestamp]);
-
-      if (result.rows.length === 0) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: 'No metrics available for the specified time range. Try collecting metrics first using get_performance_metrics.'
-            }
-          ]
-        };
+      const timeRangeMinutes = parseInt(String(args.timeRange));
+      if (isNaN(timeRangeMinutes) || timeRangeMinutes <= 0) {
+        throw new Error('Invalid time range. Please provide a positive number of minutes.');
       }
 
-      const avgMetrics = {
-        connections: parseFloat(result.rows[0].avg_connections),
-        transactionsPerSec: parseFloat(result.rows[0].avg_tps),
-        cacheHitRatio: parseFloat(result.rows[0].avg_cache_hit_ratio),
-        cpuUsage: parseFloat(result.rows[0].avg_cpu_usage),
-        memoryUsage: parseFloat(result.rows[0].avg_memory_usage),
-        iops: parseFloat(result.rows[0].avg_iops)
-      };
+      // Get current settings
+      const currentSettings = await this.configAnalyzer.getCurrentSettings();
+      
+      // Get recommendations based on metrics
+      const recommendations = await this.configAnalyzer.analyzeMetrics(timeRangeMinutes);
 
-      // Generate recommendations based on metrics
-      const recommendations = this.generateRecommendations(avgMetrics);
+      // Format recommendations with current values
+      const formattedRecommendations = recommendations.map(rec => ({
+        ...rec,
+        currentValue: currentSettings[rec.parameter] || 'unknown'
+      }));
 
       return {
         content: [
           {
             type: 'text',
             text: JSON.stringify({
-              averageMetrics: avgMetrics,
-              recommendations
+              timeRange: `${timeRangeMinutes} minutes`,
+              recommendations: formattedRecommendations
             }, null, 2)
           }
         ]
@@ -437,16 +424,18 @@ class PGaiServer {
       SELECT name, setting, unit, context, vartype
       FROM pg_settings
       WHERE name IN (
-        'shared_buffers',
         'work_mem',
-        'maintenance_work_mem',
-        'effective_cache_size',
-        'max_connections',
-        'effective_io_concurrency',
         'random_page_cost',
-        'max_worker_processes',
+        'seq_page_cost',
+        'effective_io_concurrency',
+        'max_parallel_workers_per_gather',
         'max_parallel_workers',
-        'max_parallel_workers_per_gather'
+        'max_worker_processes',
+        'min_wal_size',
+        'max_wal_size',
+        'checkpoint_completion_target',
+        'bgwriter_lru_maxpages',
+        'bgwriter_delay'
       )
     `);
     
@@ -476,60 +465,6 @@ class PGaiServer {
     }
 
     return validParameters;
-  }
-
-  private parseTimeRange(timeRange: string): number {
-    const unit = timeRange.slice(-1);
-    const value = parseInt(timeRange.slice(0, -1));
-
-    switch (unit) {
-      case 'h':
-        return value * 60 * 60 * 1000;
-      case 'd':
-        return value * 24 * 60 * 60 * 1000;
-      default:
-        throw new Error('Invalid time range format. Use format like "1h" or "7d"');
-    }
-  }
-
-  private average(numbers: number[]): number {
-    return numbers.reduce((a, b) => a + b, 0) / numbers.length;
-  }
-
-  private generateRecommendations(metrics: Record<string, number>) {
-    const recommendations = [];
-
-    // Cache hit ratio recommendations
-    if (metrics.cacheHitRatio < 0.99) {
-      recommendations.push({
-        type: 'configuration',
-        parameter: 'shared_buffers',
-        suggestion: 'Consider increasing shared_buffers',
-        reason: 'Low cache hit ratio indicates insufficient memory for caching'
-      });
-    }
-
-    // CPU usage recommendations
-    if (metrics.cpuUsage > 80) {
-      recommendations.push({
-        type: 'configuration',
-        parameter: 'max_worker_processes',
-        suggestion: 'Consider adjusting max_worker_processes and related parameters',
-        reason: 'High CPU usage indicates potential parallel query bottleneck'
-      });
-    }
-
-    // Connection recommendations
-    if (metrics.connections > 100) {
-      recommendations.push({
-        type: 'configuration',
-        parameter: 'max_connections',
-        suggestion: 'Review max_connections setting and connection pooling strategy',
-        reason: 'High number of connections may impact performance'
-      });
-    }
-
-    return recommendations;
   }
 
   private async cleanup() {
@@ -606,7 +541,7 @@ class PGaiServer {
                   properties: {
                     timeRange: { 
                       type: 'string', 
-                      description: 'Time range for analysis (e.g. "1h", "24h", "7d")'
+                      description: 'Time range in minutes for analysis (e.g. "30" or "60")'
                     }
                   },
                   required: ['timeRange']

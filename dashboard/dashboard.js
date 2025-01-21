@@ -108,9 +108,29 @@ function updateRecommendations(recommendations) {
 
     recommendationsDiv.innerHTML = recommendations.map(rec => `
         <div class="recommendation">
-            <strong>${rec.parameter}:</strong><br>
-            ${rec.suggestion}<br>
-            <small class="text-muted">${rec.reason}</small>
+            <div class="d-flex justify-content-between align-items-start mb-3">
+                <div class="parameter-name">
+                    <strong>${rec.parameter}</strong>
+                </div>
+                <div>
+                    <div class="impact-${rec.impact.toLowerCase()}">${rec.impact} Impact</div>
+                    ${rec.requiresRestart ? '<div class="restart-required">Requires Restart</div>' : ''}
+                </div>
+            </div>
+            <div class="value-pair">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <span class="text-muted">Current</span>
+                        <div class="current-value">${rec.currentValue}</div>
+                    </div>
+                    <div class="value-arrow">→</div>
+                    <div class="text-end">
+                        <span class="text-muted">Recommended</span>
+                        <div class="recommended-value">${rec.recommendedValue}</div>
+                    </div>
+                </div>
+            </div>
+            <small class="text-muted d-block mt-2">${rec.reasoning}</small>
         </div>
     `).join('');
 }
@@ -138,8 +158,8 @@ async function updateDashboard() {
         updateMetricsDisplay(metrics.metrics);
         updateChart(metrics.metrics, metrics.timestamp);
 
-        // Get recommendations
-        const analysisResponse = await fetch('/api/analyze?timeRange=1h');
+        // Get recommendations (analyze last 30 minutes of metrics)
+        const analysisResponse = await fetch('/api/analyze?timeRange=30');
         const analysisData = await analysisResponse.json();
         const analysis = JSON.parse(analysisData.content[0].text);
         updateRecommendations(analysis.recommendations);
