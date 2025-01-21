@@ -258,7 +258,24 @@ class PGaiServer {
         }
       };
 
-      this.monitoringHistory.push(metrics);
+      // Store metrics in database
+      await this.pgClient.query(
+        `INSERT INTO metrics_history.metrics (
+          timestamp, connections, transactions_per_sec, cache_hit_ratio,
+          cpu_usage, memory_usage, iops, active_queries, avg_query_time
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [
+          new Date(metrics.timestamp),
+          metrics.metrics.connections,
+          metrics.metrics.transactionsPerSec,
+          metrics.metrics.cacheHitRatio,
+          metrics.metrics.cpuUsage,
+          metrics.metrics.memoryUsage,
+          metrics.metrics.iops,
+          metrics.metrics.activeQueries,
+          metrics.metrics.avgQueryTime
+        ]
+      );
 
       return {
         content: [
@@ -287,13 +304,23 @@ class PGaiServer {
 
     try {
       const timeRange = String(args.timeRange);
-      // Get relevant metrics based on time range
-      const msAgo = this.parseTimeRange(timeRange);
-      const relevantMetrics = this.monitoringHistory.filter(
-        m => m.timestamp > Date.now() - msAgo
-      );
+      const interval = this.parseTimeRange(timeRange);
+      const timestamp = new Date(Date.now() - interval);
 
-      if (relevantMetrics.length === 0) {
+      // Get aggregated metrics from the database
+      const result = await this.pgClient.query(`
+        SELECT
+          round(avg(connections)::numeric, 2) as avg_connections,
+          round(avg(transactions_per_sec)::numeric, 2) as avg_tps,
+          round(avg(cache_hit_ratio)::numeric, 4) as avg_cache_hit_ratio,
+          round(avg(cpu_usage)::numeric, 2) as avg_cpu_usage,
+          round(avg(memory_usage)::numeric, 2) as avg_memory_usage,
+          round(avg(iops)::numeric, 2) as avg_iops
+        FROM metrics_history.metrics
+        WHERE timestamp > $1
+      `, [timestamp]);
+
+      if (result.rows.length === 0) {
         return {
           content: [
             {
@@ -304,14 +331,13 @@ class PGaiServer {
         };
       }
 
-      // Calculate averages
       const avgMetrics = {
-        connections: this.average(relevantMetrics.map(m => m.metrics.connections)),
-        transactionsPerSec: this.average(relevantMetrics.map(m => m.metrics.transactionsPerSec)),
-        cacheHitRatio: this.average(relevantMetrics.map(m => m.metrics.cacheHitRatio)),
-        cpuUsage: this.average(relevantMetrics.map(m => m.metrics.cpuUsage)),
-        memoryUsage: this.average(relevantMetrics.map(m => m.metrics.memoryUsage)),
-        iops: this.average(relevantMetrics.map(m => m.metrics.iops))
+        connections: parseFloat(result.rows[0].avg_connections),
+        transactionsPerSec: parseFloat(result.rows[0].avg_tps),
+        cacheHitRatio: parseFloat(result.rows[0].avg_cache_hit_ratio),
+        cpuUsage: parseFloat(result.rows[0].avg_cpu_usage),
+        memoryUsage: parseFloat(result.rows[0].avg_memory_usage),
+        iops: parseFloat(result.rows[0].avg_iops)
       };
 
       // Generate recommendations based on metrics
