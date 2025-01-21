@@ -103,15 +103,21 @@ Environment variables for database connection:
 - `PGPASSWORD`: Database password
 
 #### PostgreSQL Configuration
-For detailed information about PostgreSQL configuration, including:
-- Configuration file locations
-- Important parameters
-- Modification methods
-- Backup procedures
-- Best practices
-- Troubleshooting
+For detailed information about PostgreSQL configuration, see:
 
-See [PostgreSQL Configuration Guide](docs/postgres_config.md)
+1. [PostgreSQL Configuration Guide](docs/postgres_config.md)
+   - Configuration file locations
+   - Important parameters
+   - Backup procedures
+   - Troubleshooting guide
+
+2. [Custom Configuration Guide](docs/custom_postgres_config.md)
+   - Adding custom configurations
+   - Using conf.d directory
+   - Using postgresql.auto.conf
+   - Configuration precedence
+   - Best practices for organization
+   - Version control for configurations
 
 ## Database Schema
 
