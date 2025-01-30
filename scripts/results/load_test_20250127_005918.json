@@ -1,0 +1,33 @@
+{
+  "timestamp": "20250127_005918",
+  "parameters": {
+    "duration": 30,
+    "concurrent_users": 2,
+    "suggestions_applied": true
+  },
+  "query_statistics": {
+    "select": {
+      "count": 263,
+      "avg_time": 0.0021688267305323377,
+      "min_time": 0.001010894775390625,
+      "max_time": 0.025456666946411133,
+      "p95_time": 0.004888772964477539
+    },
+    "insert": {
+      "count": 114,
+      "avg_time": 0.002003663464596397,
+      "min_time": 0.0011000633239746094,
+      "max_time": 0.005761146545410156,
+      "p95_time": 0.0041332244873046875
+    }
+  },
+  "system_metrics": {
+    "suggestions_applied": {
+      "avg_cpu_usage": 50.0,
+      "avg_memory_usage": 50.0,
+      "avg_iops": 1000.0,
+      "avg_cache_hit_ratio": 0.9919,
+      "avg_query_time": 0.0021
+    }
+  }
+}

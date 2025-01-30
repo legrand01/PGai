@@ -1,0 +1,9 @@
+{
+  "timestamp": "20250126_023125",
+  "parameters": {
+    "duration": 300,
+    "concurrent_users": 10,
+    "llm_enabled": true
+  },
+  "statistics": {}
+}
